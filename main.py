@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-BOT_TOKEN = "494424963:AAEWupeNLhnLu5uOnoGx36N1gdqYK60Pf9s" 
+BOT_TOKEN = "8494424963:AAEWupeNLhnLu5uOnoGx36N1gdqYK60Pf9s" 
 ADMIN_IDS = {5562144078}
 
 processing_locks = {}
@@ -319,10 +319,10 @@ class Storage:
             self.data["marathon_state"][key]["current_sentence"] = None
             self.data["marathon_state"][key]["sentence_start_time"] = None
             self.data["marathon_state"][key]["sentence_type"] = None
-            
+
             if key not in self.data["marathon_stats"]:
                 self.data["marathon_stats"][key] = {}
-            
+
             for participant_uid in self.data["marathon_state"][key]["participants"].keys():
                 if participant_uid not in self.data["marathon_stats"][key]:
                     self.data["marathon_stats"][key][participant_uid] = {
@@ -333,7 +333,7 @@ class Storage:
                         "fastest_sentence": "",
                         "wins": 0
                     }
-            
+
             self.save()
             return True
         return False
@@ -375,7 +375,7 @@ class Storage:
         key = f"{cid}"
         if key not in self.data["marathon_stats"]:
             self.data["marathon_stats"][key] = {}
-        
+
         if str(uid) not in self.data["marathon_stats"][key]:
             self.data["marathon_stats"][key][str(uid)] = {
                 "total_sentences": 0,
@@ -385,15 +385,15 @@ class Storage:
                 "fastest_sentence": "",
                 "wins": 0
             }
-        
+
         self.data["marathon_stats"][key][str(uid)]["speeds"].append(wpm)
         self.data["marathon_stats"][key][str(uid)]["total_sentences"] += 1
         self.data["marathon_stats"][key][str(uid)]["wins"] += 1
-        
+
         if wpm > self.data["marathon_stats"][key][str(uid)]["fastest_speed"]:
             self.data["marathon_stats"][key][str(uid)]["fastest_speed"] = wpm
             self.data["marathon_stats"][key][str(uid)]["fastest_sentence"] = sentence
-        
+
         self.save()
 
     def get_marathon_stats(self, cid):
@@ -410,32 +410,32 @@ class Storage:
     def add_wiki_sentence(self, user_cid_key, sentence_hash):
         if "wiki_history" not in self.data:
             self.data["wiki_history"] = {}
-        
+
         if user_cid_key not in self.data["wiki_history"]:
             self.data["wiki_history"][user_cid_key] = []
-        
+
         self.data["wiki_history"][user_cid_key].append({
             "hash": sentence_hash,
             "timestamp": time.time()
         })
-        
+
         if len(self.data["wiki_history"][user_cid_key]) > 100:
             self.data["wiki_history"][user_cid_key] = self.data["wiki_history"][user_cid_key][-100:]
-        
+
         self.save()
 
     def is_wiki_sentence_used(self, user_cid_key, sentence_hash):
         if "wiki_history" not in self.data:
             return False
-        
+
         history = self.data["wiki_history"].get(user_cid_key, [])
-        
+
         current_time = time.time()
         recent_hashes = [
             item["hash"] for item in history 
             if current_time - item.get("timestamp", 0) < 3600
         ]
-        
+
         return sentence_hash in recent_hashes
 
     def cleanup(self):
@@ -545,7 +545,7 @@ class WikiManager:
                         s = clean_wiki(s.strip())
                         if 8 <= len(s.split()) <= 21:
                             sentence_hash = hash(normalize(s))
-                            
+
                             if s not in self.used:
                                 if user_cid_key:
                                     if not storage.is_wiki_sentence_used(user_cid_key, sentence_hash):
@@ -559,7 +559,7 @@ class WikiManager:
                                     return s
             except Exception as e:
                 print(f"Error fetching from Wikipedia: {e}")
-            
+
             attempt += 1
             time.sleep(0.5)
 
@@ -630,27 +630,27 @@ def normalize(txt):
     return re.sub(r'\s+', ' ', ''.join(CHAR_MAP.get(c, c) for c in txt)).strip()
 
 def format_display(s):
-    return '...'.join(s.split())
+    return ' ، '.join(s.split())
 
 def match_text(orig, usr):
     orig_normalized = normalize(orig)
     usr_normalized = normalize(usr)
-    
+
     if orig_normalized == usr_normalized:
         return True
-    
+
     usr_with_spaces = re.sub(r'[≈=\-~_|/\\]+', ' ', usr)
     usr_with_spaces_normalized = normalize(usr_with_spaces)
-    
+
     if orig_normalized == usr_with_spaces_normalized:
         return True
-    
+
     words = usr_with_spaces_normalized.split()
     if len(words) >= 2:
         reversed_text = ' '.join(reversed(words))
         if orig_normalized == reversed_text:
             return True
-    
+
     return False
 
 def norm_spaces(txt):
@@ -780,19 +780,19 @@ def is_admin(uid):
 
 async def send_marathon_sentence(u: Update, context: ContextTypes.DEFAULT_TYPE, cid):
     marathon_state = storage.get_marathon_state(cid)
-    
+
     if not marathon_state or marathon_state["state"] != "running":
         return
-    
+
     sections = marathon_state["sections"]
     if not sections:
         return
-    
+
     section = random.choice(sections)
     sentence = None
     sentence_type = section
     thread_id = marathon_state.get("thread_id")
-    
+
     if section == "ويكي":
         user_cid_key = f"{list(marathon_state['participants'].keys())[0]}_{cid}"
         sentence = managers["ويكي"].fetch(user_cid_key)
@@ -801,14 +801,14 @@ async def send_marathon_sentence(u: Update, context: ContextTypes.DEFAULT_TYPE, 
     elif section == "شرط":
         sent = managers["شرط"].get()
         cond = random.choice(CONDITIONS)
-        
+
         await context.bot.send_message(
             chat_id=cid, 
             text=cond,
             message_thread_id=thread_id
         )
         await asyncio.sleep(2)
-        
+
         sentence = sent
         storage.set_marathon_sentence(cid, f"{sent}||{cond}", sentence_type)
         await context.bot.send_message(
@@ -819,9 +819,9 @@ async def send_marathon_sentence(u: Update, context: ContextTypes.DEFAULT_TYPE, 
         return
     else:
         sentence = managers.get(section, managers["جمم"]).get()
-    
+
     storage.set_marathon_sentence(cid, sentence, sentence_type)
-    
+
     if section == "كرر":
         await context.bot.send_message(
             chat_id=cid,
@@ -990,12 +990,12 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
     usr = u.message.from_user.username
     msg_id = u.message.message_id
     thread_id = u.message.message_thread_id if u.message.is_topic_message else None
-    
+
     msg_key = f"{cid}_{msg_id}"
     if msg_key in processed_messages:
         return
     processed_messages.add(msg_key)
-    
+
     if len(processed_messages) > 1000:
         processed_messages.clear()
 
@@ -1049,76 +1049,76 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return
 
     marathon_state = storage.get_marathon_state(cid)
-    
+
     if text in ['النشرة', 'نشرة'] and marathon_state and marathon_state["state"] == "running":
         stats_data = storage.get_marathon_stats(cid)
-        
+
         if stats_data:
             msg = "📊 نشرة الماراثون\n\n"
-            
+
             stats_list = []
             for participant_uid, stats in stats_data.items():
                 user_data = storage.data["users"].get(str(participant_uid), {})
                 user_name = user_data.get("first_name", "مستخدم")
                 user_username = user_data.get("username")
                 mention = f"@{user_username}" if user_username else user_name
-                
+
                 stats_list.append({
                     "mention": mention,
                     "wins": stats.get("wins", 0),
                     "fastest": stats.get("fastest_speed", 0)
                 })
-            
+
             stats_list.sort(key=lambda x: x["wins"], reverse=True)
-            
+
             msg += "عدد الفوزات:\n"
             for item in stats_list:
                 msg += f"  {item['mention']}: {item['wins']} فوز\n"
-            
+
             msg += "\n"
-            
+
             stats_list.sort(key=lambda x: x["fastest"], reverse=True)
-            
+
             msg += "أعلى سرعة:\n"
             for item in stats_list:
                 msg += f"  {item['mention']}: {item['fastest']:.2f} WPM\n"
-            
+
             await u.message.reply_text(msg)
         else:
             await u.message.reply_text("لا توجد إحصائيات بعد")
         return
-    
+
     if text == "قف" and marathon_state and marathon_state["state"] == "running":
         stats_data = storage.end_marathon(cid)
-        
+
         if stats_data:
             msg = "انتهى الماراثون\n\n"
             msg += "الإحصائيات:\n\n"
-            
+
             for participant_uid, stats in stats_data.items():
                 if stats["total_sentences"] > 0:
                     total_time = time.time() - stats["start_time"]
                     avg_speed = sum(stats["speeds"]) / len(stats["speeds"])
-                    
+
                     user_data = storage.data["users"].get(str(participant_uid), {})
                     user_name = user_data.get("first_name", "مستخدم")
                     user_username = user_data.get("username")
                     mention = f"@{user_username}" if user_username else user_name
-                    
+
                     msg += f"🏆 {mention}:\n"
                     msg += f"  - عدد الجمل: {stats['total_sentences']}\n"
                     msg += f"  - متوسط السرعة: {avg_speed:.2f} WPM\n"
                     msg += f"  - أسرع سرعة: {stats['fastest_speed']:.2f} WPM\n\n"
-            
+
             await u.message.reply_text(msg)
         else:
             await u.message.reply_text("تم إيقاف الماراثون")
         return
-    
+
     if text == "تغيير" and marathon_state and marathon_state["state"] == "running":
         await send_marathon_sentence(u, c, cid)
         return
-    
+
     if text.startswith("ازالة ") and marathon_state:
         if storage.is_marathon_creator(uid, cid):
             target_username = text.replace("ازالة ", "").replace("@", "").strip()
@@ -1134,7 +1134,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
         else:
             await u.message.reply_text("فقط منشئ الماراثون يمكنه إزالة المشاركين")
         return
-    
+
     if marathon_state and marathon_state["state"] == "waiting_participants":
         if text == "10":
             if storage.add_marathon_participant(uid, cid, name, usr):
@@ -1146,7 +1146,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
             else:
                 await u.message.reply_text("أنت مشارك بالفعل!")
             return
-        
+
         elif text in MARATHON_SECTIONS:
             if storage.is_marathon_creator(uid, cid):
                 section_name = MARATHON_SECTIONS[text]
@@ -1160,22 +1160,22 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 else:
                     await u.message.reply_text("هذا القسم مضاف بالفعل!")
             return
-        
+
         elif text in ["بدء الماراثون", "بدء ماراثون"]:
             if storage.is_marathon_creator(uid, cid):
                 sections = marathon_state["sections"]
                 participants = marathon_state["participants"]
-                
+
                 if not sections:
                     await u.message.reply_text("يجب اختيار قسم واحد على الأقل!")
                     return
-                
+
                 if not participants:
                     await u.message.reply_text("لا يوجد مشاركين بعد!")
                     return
-                
+
                 thread_id_to_use = marathon_state.get("thread_id")
-                
+
                 await c.bot.send_message(
                     chat_id=cid,
                     text="3",
@@ -1194,21 +1194,21 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                     message_thread_id=thread_id_to_use
                 )
                 await asyncio.sleep(1)
-                
+
                 storage.start_marathon_running(cid)
                 await send_marathon_sentence(u, c, cid)
             return
-    
+
     if marathon_state and marathon_state["state"] == "running":
         current_sentence = marathon_state.get("current_sentence")
         sentence_start_time = marathon_state.get("sentence_start_time")
         sentence_type = marathon_state.get("sentence_type")
-        
+
         if str(uid) not in marathon_state["participants"]:
             return
-        
+
         num_participants = len(marathon_state["participants"])
-        
+
         matched = False
         if current_sentence and sentence_start_time:
             if sentence_type == "كرر":
@@ -1229,20 +1229,20 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                     matched = True
                 elif num_participants == 1:
                     matched = False
-        
+
         if matched:
             if str(uid) in marathon_state.get("answered_by", []):
                 return
-            
+
             elapsed = time.time() - sentence_start_time
             wpm = (len(text.split()) / elapsed) * 60
-            
+
             storage.add_marathon_speed(uid, cid, wpm, current_sentence)
             storage.mark_participant_answered(uid, cid)
-            
+
             mention = f"@{usr}" if usr else name
             await u.message.reply_text(f"ممتاز {mention}! سرعتك: {wpm:.2f} WPM")
-            
+
             await send_marathon_sentence(u, c, cid)
             return
         elif num_participants == 1 and current_sentence and sentence_start_time:
@@ -1340,7 +1340,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if text in ['ماراثون', 'مارثون']:
         storage.log_cmd('ماراثون')
         storage.start_marathon_selection(uid, cid, thread_id)
-        
+
         msg = "ماراثون الكتابة\n\n"
         msg += "📌 اللي بيشارك في الماراثون يرسل رقم 10\n\n"
         msg += "⚠️ الماراثون اذا كان مكون من شخص واحد، اي رسالة منه البوت يعتبرها إجابة على الجملة\n\n"
@@ -1372,7 +1372,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
         msg += "7 - شك (جمل عامية)\n"
         msg += "8 - كرر (تكرار الكلمات)\n\n"
         msg += "اكتب رقم القسم الذي تريده:"
-        
+
         await u.message.reply_text(msg)
         return
 
@@ -1385,40 +1385,35 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
         storage.save_session(uid, cid, 'جمم', t, time.time(), thread_id)
         await u.message.reply_text(format_display(t))
     elif text == 'ويكي':
-        lock_key = f"{uid}_{cid}_wiki_{msg_id}"
         wiki_user_lock = f"{uid}_{cid}_wiki"
-        
-        if lock_key in processed_message_ids:
-            return
-        processed_message_ids[lock_key] = time.time()
-        
+
         if wiki_user_lock not in processing_locks:
             processing_locks[wiki_user_lock] = asyncio.Lock()
-        
+
         if processing_locks[wiki_user_lock].locked():
             return
-            
+
         async with processing_locks[wiki_user_lock]:
             now = time.time()
             last_time = last_wiki_request.get(wiki_user_lock, 0)
-            
+
             if now - last_time < 2:
                 await asyncio.sleep(2 - (now - last_time))
-            
+
             storage.cancel_user_session_in_type(uid, cid, 'ويكي')
-            
+
             user_cid_key = f"{uid}_{cid}"
             t = managers["ويكي"].fetch(user_cid_key)
-            
+
             if not t or t == "جرب مرة أخرى":
                 await u.message.reply_text(t if t else "جرب مرة أخرى")
                 last_wiki_request[wiki_user_lock] = time.time()
                 return
-            
+
             storage.save_session(uid, cid, 'ويكي', t, time.time(), thread_id)
-            
+
             last_wiki_request[wiki_user_lock] = time.time()
-            
+
             await u.message.reply_text(format_display(t))
     elif text == 'صج':
         storage.cancel_user_session_in_type(uid, cid, 'صج')
@@ -1445,7 +1440,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
         s = managers["شرط"].get()
         cond = random.choice(CONDITIONS)
         storage.save_session(uid, cid, 'شرط', f"{s}||{cond}", time.time(), thread_id)
-        
+
         await u.message.reply_text(cond)
         await asyncio.sleep(2)
         await u.message.reply_text(format_display(s))
@@ -1501,7 +1496,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                     target = round_data['target']
                     wins_list = round_data.get('wins', {})
                     mention = f"@{usr}" if usr else name
-                    
+
                     round_stats = "\n\n📊 إحصائيات الجولة:\n"
                     sorted_wins = sorted(wins_list.items(), key=lambda x: x[1], reverse=True)
                     for i, (user_id, user_wins) in enumerate(sorted_wins, 1):
@@ -1510,7 +1505,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                         user_username = user_data.get("username")
                         user_mention = f"@{user_username}" if user_username else user_name
                         round_stats += f"{i}. {user_mention}: {user_wins}/{target}\n"
-                    
+
                     if wins >= target:
                         storage.end_round(cid)
                         await u.message.reply_text(
