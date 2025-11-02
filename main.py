@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-BOT_TOKEN = "8494424963:AAEWupeNLhnLu5uOnoGx36N1gdqYK60Pf9s" 
+BOT_TOKEN = "" 
 ADMIN_IDS = {5562144078}
 
 processing_locks = {}
