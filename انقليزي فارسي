@@ -6,12 +6,12 @@ import json
 import os
 import asyncio
 from datetime import datetime, timedelta
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from collections import defaultdict
 
-BOT_TOKEN = "8494424963:AAF6-S97oBbAqHR6XZ6C2DBvJKDNcIe_Tbk" 
-OWNER_ID = 5562144078
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 
 message_cache = {}
 last_save_time = time.time()
@@ -31,8 +31,8 @@ URLS = {
     "دبل": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/3kswdblwtrdl.txt",
     "تر": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/3kswdblwtrdl.txt",
     "عكس": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/3kswdblwtrdl.txt",
-    "فر": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/Farsi.txt",
-    "E": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/English.txt"
+    "فارسي": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/Farese.txt",
+    "انقليزي": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/English.txt"
 }
 
 REPEAT_WORDS = ["صمت", "صوف", "سين", "عين", "جيم", "كتب", "خبر", "حلم", "جمل", "تعب", "عرب", "نار", "برد", "نسر", "طرب", "شك", "ثور", "خسر", "علم", "صوت", "سون", "كل", "ثوب", "هات", "همس"]
@@ -432,14 +432,21 @@ class Storage:
 storage = Storage()
 
 class RemoteManager:
-    def __init__(self, url, min_words=5, max_words=25, disasm=False, is_english=False):
+    def __init__(self, url, min_words=5, max_words=25, disasm=False, lang="arabic"):
         self.url = url
         self.min_words = min_words
         self.max_words = max_words
         self.disasm = disasm
-        self.is_english = is_english
+        self.lang = lang
         self.sentences = []
         self.last_update = 0
+        
+        if lang == "english":
+            self.clean_func = clean_english
+        elif lang == "persian":
+            self.clean_func = clean_persian
+        else:
+            self.clean_func = clean
 
     def load(self):
         try:
@@ -448,28 +455,14 @@ class RemoteManager:
                 if self.url.endswith('.json'):
                     data = r.json()
                     self.sentences = [
-                        clean(s, keep_english=self.is_english) for s in data
-                        if s.strip() and self.min_words <= len(clean(s, keep_english=self.is_english).split()) <= self.max_words
+                        self.clean_func(s) for s in data
+                        if s.strip() and self.min_words <= len(self.clean_func(s).split()) <= self.max_words
                     ]
                 else:
-                    if self.is_english:
-                        all_text = r.text.strip()
-                        raw_sentences = []
-                        for line in all_text.split('\n'):
-                            if ',' in line:
-                                raw_sentences.extend([s.strip() for s in line.split(',')])
-                            else:
-                                raw_sentences.append(line.strip())
-                        
-                        self.sentences = [
-                            clean(s, keep_english=True) for s in raw_sentences
-                            if s.strip() and self.min_words <= len(clean(s, keep_english=True).split()) <= self.max_words
-                        ]
-                    else:
-                        self.sentences = [
-                            clean(s) for s in r.text.split('\n')
-                            if s.strip() and self.min_words <= len(clean(s).split()) <= self.max_words
-                        ]
+                    self.sentences = [
+                        self.clean_func(s) for s in r.text.split('\n')
+                        if s.strip() and self.min_words <= len(self.clean_func(s).split()) <= self.max_words
+                    ]
                 self.last_update = time.time()
         except Exception as e:
             print(f"Error loading from {self.url}: {e}")
@@ -510,14 +503,12 @@ class CSVQuotesManager:
             self.load()
         return random.choice(self.quotes) if self.quotes else "لا توجد اقتباسات حالياً"
 
-def clean(txt, keep_english=False):
+def clean(txt):
     txt = re.sub(r'[\u064B-\u065F\u0670]', '', txt.replace(' ≈ ', ' ').replace('≈', ' '))
     txt = re.sub(r'\([^)]*[a-zA-Z]+[^)]*\)', '', txt)
     txt = re.sub(r'\[[^\]]*\]', '', txt)
     txt = re.sub(r'\([^)]*\)', '', txt)
-    
-    if not keep_english:
-        txt = ' '.join([w for w in txt.split() if not re.search(r'[a-zA-Z]', w)])
+    txt = ' '.join([w for w in txt.split() if not re.search(r'[a-zA-Z]', w)])
 
     def rep_num(m):
         n = m.group()
@@ -527,9 +518,35 @@ def clean(txt, keep_english=False):
     txt = re.sub(r'[،,:;؛\-–—\.\!؟\?\(\)\[\]\{\}""''«»…]', ' ', txt)
     return re.sub(r'\s+', ' ', txt).strip()
 
+def clean_persian(txt):
+    txt = re.sub(r'[\u064B-\u065F\u0670]', '', txt)
+    txt = re.sub(r'\([^)]*\)', '', txt)
+    txt = re.sub(r'\[[^\]]*\]', '', txt)
+    txt = re.sub(r'[،,:;؛\-–—\.\!؟\?\(\)\[\]\{\}""''«»…]', ' ', txt)
+    return re.sub(r'\s+', ' ', txt).strip()
+
+def clean_english(txt):
+    txt = txt.strip()
+    txt = re.sub(r'\([^)]*\)', '', txt)
+    txt = re.sub(r'\[[^\]]*\]', '', txt)
+    txt = re.sub(r'[,;:\-–—\.!\?\(\)\[\]\{\}""''«»…]+', ' ', txt)
+    return re.sub(r'\s+', ' ', txt).strip()
+
 def normalize(txt):
     txt = re.sub(r'[\u064B-\u065F\u0670]', '', txt)
     return re.sub(r'\s+', ' ', ''.join(CHAR_MAP.get(c, c) for c in txt)).strip()
+
+def normalize_persian(txt):
+    txt = txt.strip().lower()
+    persian_map = {'أ': 'ا', 'إ': 'ا', 'آ': 'ا', 'ى': 'ي', 'ة': 'ه', 'ئ': 'ي', 'ؤ': 'و', 'ٱ': 'ا', 'ٳ': 'ا'}
+    txt = ''.join(persian_map.get(c, c) for c in txt)
+    txt = re.sub(r'[\u064B-\u065F\u0670]', '', txt)
+    return re.sub(r'\s+', ' ', txt).strip()
+
+def normalize_english(txt):
+    txt = txt.strip().lower()
+    txt = re.sub(r'[^\w\s]', '', txt)
+    return re.sub(r'\s+', ' ', txt).strip()
 
 def format_display(s):
     return ' ، '.join(s.split())
@@ -540,15 +557,27 @@ def count_words_for_wpm(text):
     words = cleaned_text.split()
     return len(words)
 
-def match_text(orig, usr):
-    orig_normalized = normalize(orig)
-    usr_normalized = normalize(usr)
+def match_text(orig, usr, lang="arabic"):
+    if lang == "persian":
+        orig_normalized = normalize_persian(orig)
+        usr_normalized = normalize_persian(usr)
+    elif lang == "english":
+        orig_normalized = normalize_english(orig)
+        usr_normalized = normalize_english(usr)
+    else:
+        orig_normalized = normalize(orig)
+        usr_normalized = normalize(usr)
 
     if orig_normalized == usr_normalized:
         return True
 
     usr_with_spaces = re.sub(r'[≈=\-~_|/\\]+', ' ', usr)
-    usr_with_spaces_normalized = normalize(usr_with_spaces)
+    if lang == "persian":
+        usr_with_spaces_normalized = normalize_persian(usr_with_spaces)
+    elif lang == "english":
+        usr_with_spaces_normalized = normalize_english(usr_with_spaces)
+    else:
+        usr_with_spaces_normalized = normalize(usr_with_spaces)
 
     if orig_normalized == usr_with_spaces_normalized:
         return True
@@ -765,8 +794,8 @@ managers = {
     "دبل": RemoteManager(URLS["دبل"]),
     "تر": RemoteManager(URLS["تر"]),
     "عكس": RemoteManager(URLS["عكس"]),
-    "فر": RemoteManager(URLS["فر"]),
-    "E": RemoteManager(URLS["E"], is_english=True)
+    "فارسي": RemoteManager(URLS["فارسي"], min_words=3, max_words=30, lang="persian"),
+    "انقليزي": RemoteManager(URLS["انقليزي"], min_words=3, max_words=30, lang="english")
 }
 
 async def cmd_start(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -784,14 +813,14 @@ async def cmd_start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         "- (صج) - مولد الكلمات العربية\n"
         "- (شك) - جمل عامية\n"
         "- (جش) - اقتباسات\n"
-        "- (فر) - جمل فارسية\n"
-        "- (E) - جمل إنجليزية\n"
         "- (كرر) - تكرار الكلمات\n"
         "- (شرط) - جمل بالشروط\n"
         "- (فكك) - فك وتركيب\n"
         "- (دبل) - تكرار كل كلمة مرتين\n"
         "- (تر) - تكرار كل كلمة ثلاث مرات\n"
-        "- (عكس) - كتابة الجملة بالعكس\n\n"
+        "- (عكس) - كتابة الجملة بالعكس\n"
+        "- (فارسي) - جمل باللغة الفارسية\n"
+        "- (انقليزي) - جمل باللغة الإنجليزية\n\n"
         " أوامر البوت : \n\n"
         "-(الصدارة) - المتصدرين \n" 
         "- (جوائزي) - عرض جوائزك\n"
@@ -807,7 +836,7 @@ async def cmd_leaderboard(u: Update, c: ContextTypes.DEFAULT_TYPE):
         await u.message.reply_text("انت محظور تواصل مع @XXVV_99")
         return
 
-    types = ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E", "كرر", "شرط", "فكك", "دبل", "تر", "عكس"]
+    types = ["جمم", "ويكي", "صج", "شك", "جش", "كرر", "شرط", "فكك", "دبل", "تر", "عكس", "فارسي", "انقليزي"]
     sections = []
 
     for typ in types:
@@ -985,7 +1014,7 @@ async def cmd_stats(u: Update, c: ContextTypes.DEFAULT_TYPE):
     banned = len(storage.data["banned"])
 
     stats_details = "\n\nإحصائيات الأقسام:\n"
-    types = ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E", "كرر", "شرط", "فكك", "دبل", "تر", "عكس"]
+    types = ["جمم", "ويكي", "صج", "شك", "جش", "كرر", "شرط", "فكك", "دبل", "تر", "عكس", "فارسي", "انقليزي"]
 
     total_usage = {}
     for date, commands in storage.data["stats"].items():
@@ -1093,7 +1122,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     if storage.is_banned(uid):
         commands = ["الصدارة", "جوائزي", "جولة", "فتح جولة", "باند", "الغاء باند", "إذاعة", "احصاء", "الإشراف",
-                   "جمم", "ويكي", "صج", "شك", "جش", "فر", "E", "كرر", "شرط", "فكك", "دبل", "تر", "عكس", "عرض", "مقالات"]
+                   "جمم", "ويكي", "صج", "شك", "جش", "كرر", "شرط", "فكك", "دبل", "تر", "عكس", "عرض", "مقالات", "فارسي", "انقليزي"]
         is_command = any(text.startswith(cmd) for cmd in commands)
 
         if is_command:
@@ -1197,12 +1226,28 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     active_sessions = storage.get_all_active_sessions(cid)
 
-    if text in ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E"]:
+    if text in ["جمم", "ويكي", "صج", "شك", "جش"]:
         storage.log_cmd(text)
         sent = managers[text].get()
         storage.save_session(uid, cid, text, sent, time.time(), sent=True)
         display = format_display(sent)
         await u.message.reply_text(display)
+        return
+
+    if text == "فارسي":
+        storage.log_cmd("فارسي")
+        sent = managers["فارسي"].get()
+        storage.save_session(uid, cid, "فارسي", sent, time.time(), sent=True)
+        display = format_display(sent)
+        await u.message.reply_text(f"اكتب الجملة التالية بالفارسية:\n{display}")
+        return
+
+    if text == "انقليزي":
+        storage.log_cmd("انقليزي")
+        sent = managers["انقليزي"].get()
+        storage.save_session(uid, cid, "انقليزي", sent, time.time(), sent=True)
+        display = format_display(sent)
+        await u.message.reply_text(f"اكتب الجملة التالية بالإنجليزية:\n{display}")
         return
 
     if text == "كرر":
@@ -1262,8 +1307,14 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
         matched = False
 
-        if typ in ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E"]:
-            if match_text(orig, text):
+        if typ in ["جمم", "ويكي", "صج", "شك", "جش"]:
+            if match_text(orig, text, "arabic"):
+                matched = True
+        elif typ == "فارسي":
+            if match_text(orig, text, "persian"):
+                matched = True
+        elif typ == "انقليزي":
+            if match_text(orig, text, "english"):
                 matched = True
         elif typ == "كرر":
             valid, err = validate_repeat(orig, text)
