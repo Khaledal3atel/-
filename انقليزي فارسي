@@ -1122,7 +1122,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     if storage.is_banned(uid):
         commands = ["الصدارة", "جوائزي", "جولة", "فتح جولة", "باند", "الغاء باند", "إذاعة", "احصاء", "الإشراف",
-                   "جمم", "ويكي", "صج", "شك", "جش", "كرر", "شرط", "فكك", "دبل", "تر", "عكس", "عرض", "مقالات", "فارسي", "انقليزي"]
+                   "جمم", "ويكي", "صج", "شك", "جش", "كرر", "شرط", "فكك", "دبل", "تر", "عكس", "عرض", "مقالات", "فر", "E"]
         is_command = any(text.startswith(cmd) for cmd in commands)
 
         if is_command:
@@ -1239,7 +1239,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
         sent = managers["فر"].get()
         storage.save_session(uid, cid, "فر", sent, time.time(), sent=True)
         display = format_display(sent)
-        await u.message.reply_text(f"اكتب الجملة التالية بالفارسية:\n{display}")
+        await u.message.reply_text(display) 
         return
 
     if text == "E":
@@ -1247,7 +1247,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
         sent = managers["E"].get()
         storage.save_session(uid, cid, "E", sent, time.time(), sent=True)
         display = format_display(sent)
-        await u.message.reply_text(f"اكتب الجملة التالية بالإنجليزية:\n{display}")
+        await u.message.reply_text(display)
         return
 
     if text == "كرر":
