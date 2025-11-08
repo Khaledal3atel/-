@@ -819,8 +819,8 @@ async def cmd_start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         "- (دبل) - تكرار كل كلمة مرتين\n"
         "- (تر) - تكرار كل كلمة ثلاث مرات\n"
         "- (عكس) - كتابة الجملة بالعكس\n"
-        "- (فارسي) - جمل باللغة الفارسية\n"
-        "- (انقليزي) - جمل باللغة الإنجليزية\n\n"
+        "- (فر) - جمل باللغة الفارسية\n"
+        "- (E) - جمل باللغة الإنجليزية\n\n"
         " أوامر البوت : \n\n"
         "-(الصدارة) - المتصدرين \n" 
         "- (جوائزي) - عرض جوائزك\n"
@@ -1234,18 +1234,18 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
         await u.message.reply_text(display)
         return
 
-    if text == "فارسي":
-        storage.log_cmd("فارسي")
-        sent = managers["فارسي"].get()
-        storage.save_session(uid, cid, "فارسي", sent, time.time(), sent=True)
+    if text == "فر":
+        storage.log_cmd("فر")
+        sent = managers["فر"].get()
+        storage.save_session(uid, cid, "فر", sent, time.time(), sent=True)
         display = format_display(sent)
         await u.message.reply_text(f"اكتب الجملة التالية بالفارسية:\n{display}")
         return
 
-    if text == "انقليزي":
-        storage.log_cmd("انقليزي")
-        sent = managers["انقليزي"].get()
-        storage.save_session(uid, cid, "انقليزي", sent, time.time(), sent=True)
+    if text == "E":
+        storage.log_cmd("E")
+        sent = managers["E"].get()
+        storage.save_session(uid, cid, "E", sent, time.time(), sent=True)
         display = format_display(sent)
         await u.message.reply_text(f"اكتب الجملة التالية بالإنجليزية:\n{display}")
         return
