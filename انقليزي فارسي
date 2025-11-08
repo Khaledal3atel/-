@@ -10,12 +10,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from collections import defaultdict
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID")) if os.getenv("OWNER_ID") else None
-
-if not BOT_TOKEN or not OWNER_ID:
-    print("ERROR: BOT_TOKEN and OWNER_ID must be set in environment variables")
-    exit(1)
+BOT_TOKEN = "8494424963:AAF6-S97oBbAqHR6XZ6C2DBvJKDNcIe_Tbk" 
+OWNER_ID = 5562144078
 
 message_cache = {}
 last_save_time = time.time()
@@ -35,8 +31,8 @@ URLS = {
     "دبل": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/3kswdblwtrdl.txt",
     "تر": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/3kswdblwtrdl.txt",
     "عكس": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/3kswdblwtrdl.txt",
-    "فارسي": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/Farese.txt",
-    "انقليزي": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/English.txt"
+    "فر": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/Farsi.txt",
+    "E": "https://raw.githubusercontent.com/Khaledal3atel/-/refs/heads/main/English.txt"
 }
 
 REPEAT_WORDS = ["صمت", "صوف", "سين", "عين", "جيم", "كتب", "خبر", "حلم", "جمل", "تعب", "عرب", "نار", "برد", "نسر", "طرب", "شك", "ثور", "خسر", "علم", "صوت", "سون", "كل", "ثوب", "هات", "همس"]
@@ -436,11 +432,12 @@ class Storage:
 storage = Storage()
 
 class RemoteManager:
-    def __init__(self, url, min_words=5, max_words=25, disasm=False):
+    def __init__(self, url, min_words=5, max_words=25, disasm=False, is_english=False):
         self.url = url
         self.min_words = min_words
         self.max_words = max_words
         self.disasm = disasm
+        self.is_english = is_english
         self.sentences = []
         self.last_update = 0
 
@@ -451,14 +448,28 @@ class RemoteManager:
                 if self.url.endswith('.json'):
                     data = r.json()
                     self.sentences = [
-                        clean(s) for s in data
-                        if s.strip() and self.min_words <= len(clean(s).split()) <= self.max_words
+                        clean(s, keep_english=self.is_english) for s in data
+                        if s.strip() and self.min_words <= len(clean(s, keep_english=self.is_english).split()) <= self.max_words
                     ]
                 else:
-                    self.sentences = [
-                        clean(s) for s in r.text.split('\n')
-                        if s.strip() and self.min_words <= len(clean(s).split()) <= self.max_words
-                    ]
+                    if self.is_english:
+                        all_text = r.text.strip()
+                        raw_sentences = []
+                        for line in all_text.split('\n'):
+                            if ',' in line:
+                                raw_sentences.extend([s.strip() for s in line.split(',')])
+                            else:
+                                raw_sentences.append(line.strip())
+                        
+                        self.sentences = [
+                            clean(s, keep_english=True) for s in raw_sentences
+                            if s.strip() and self.min_words <= len(clean(s, keep_english=True).split()) <= self.max_words
+                        ]
+                    else:
+                        self.sentences = [
+                            clean(s) for s in r.text.split('\n')
+                            if s.strip() and self.min_words <= len(clean(s).split()) <= self.max_words
+                        ]
                 self.last_update = time.time()
         except Exception as e:
             print(f"Error loading from {self.url}: {e}")
@@ -499,12 +510,14 @@ class CSVQuotesManager:
             self.load()
         return random.choice(self.quotes) if self.quotes else "لا توجد اقتباسات حالياً"
 
-def clean(txt):
+def clean(txt, keep_english=False):
     txt = re.sub(r'[\u064B-\u065F\u0670]', '', txt.replace(' ≈ ', ' ').replace('≈', ' '))
     txt = re.sub(r'\([^)]*[a-zA-Z]+[^)]*\)', '', txt)
     txt = re.sub(r'\[[^\]]*\]', '', txt)
     txt = re.sub(r'\([^)]*\)', '', txt)
-    txt = ' '.join([w for w in txt.split() if not re.search(r'[a-zA-Z]', w)])
+    
+    if not keep_english:
+        txt = ' '.join([w for w in txt.split() if not re.search(r'[a-zA-Z]', w)])
 
     def rep_num(m):
         n = m.group()
@@ -752,8 +765,8 @@ managers = {
     "دبل": RemoteManager(URLS["دبل"]),
     "تر": RemoteManager(URLS["تر"]),
     "عكس": RemoteManager(URLS["عكس"]),
-    "فارسي": RemoteManager(URLS["فارسي"]),
-    "انقليزي": RemoteManager(URLS["انقليزي"])
+    "فر": RemoteManager(URLS["فر"]),
+    "E": RemoteManager(URLS["E"], is_english=True)
 }
 
 async def cmd_start(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -771,8 +784,8 @@ async def cmd_start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         "- (صج) - مولد الكلمات العربية\n"
         "- (شك) - جمل عامية\n"
         "- (جش) - اقتباسات\n"
-        "- (فارسي) - جمل فارسية\n"
-        "- (انقليزي) - جمل إنجليزية\n"
+        "- (فر) - جمل فارسية\n"
+        "- (E) - جمل إنجليزية\n"
         "- (كرر) - تكرار الكلمات\n"
         "- (شرط) - جمل بالشروط\n"
         "- (فكك) - فك وتركيب\n"
@@ -794,7 +807,7 @@ async def cmd_leaderboard(u: Update, c: ContextTypes.DEFAULT_TYPE):
         await u.message.reply_text("انت محظور تواصل مع @XXVV_99")
         return
 
-    types = ["جمم", "ويكي", "صج", "شك", "جش", "فارسي", "انقليزي", "كرر", "شرط", "فكك", "دبل", "تر", "عكس"]
+    types = ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E", "كرر", "شرط", "فكك", "دبل", "تر", "عكس"]
     sections = []
 
     for typ in types:
@@ -972,7 +985,7 @@ async def cmd_stats(u: Update, c: ContextTypes.DEFAULT_TYPE):
     banned = len(storage.data["banned"])
 
     stats_details = "\n\nإحصائيات الأقسام:\n"
-    types = ["جمم", "ويكي", "صج", "شك", "جش", "فارسي", "انقليزي", "كرر", "شرط", "فكك", "دبل", "تر", "عكس"]
+    types = ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E", "كرر", "شرط", "فكك", "دبل", "تر", "عكس"]
 
     total_usage = {}
     for date, commands in storage.data["stats"].items():
@@ -1080,7 +1093,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     if storage.is_banned(uid):
         commands = ["الصدارة", "جوائزي", "جولة", "فتح جولة", "باند", "الغاء باند", "إذاعة", "احصاء", "الإشراف",
-                   "جمم", "ويكي", "صج", "شك", "جش", "فارسي", "انقليزي", "كرر", "شرط", "فكك", "دبل", "تر", "عكس", "عرض", "مقالات"]
+                   "جمم", "ويكي", "صج", "شك", "جش", "فر", "E", "كرر", "شرط", "فكك", "دبل", "تر", "عكس", "عرض", "مقالات"]
         is_command = any(text.startswith(cmd) for cmd in commands)
 
         if is_command:
@@ -1184,7 +1197,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     active_sessions = storage.get_all_active_sessions(cid)
 
-    if text in ["جمم", "ويكي", "صج", "شك", "جش", "فارسي", "انقليزي"]:
+    if text in ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E"]:
         storage.log_cmd(text)
         sent = managers[text].get()
         storage.save_session(uid, cid, text, sent, time.time(), sent=True)
@@ -1249,7 +1262,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
         matched = False
 
-        if typ in ["جمم", "ويكي", "صج", "شك", "جش", "فارسي", "انقليزي"]:
+        if typ in ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E"]:
             if match_text(orig, text):
                 matched = True
         elif typ == "كرر":
