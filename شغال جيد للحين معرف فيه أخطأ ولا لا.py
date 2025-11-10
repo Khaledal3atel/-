@@ -1569,11 +1569,13 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
                 if text in valid_sections:
                     if storage.add_auto_section(cid, text):
-                        await u.message.reply_text(f"الحين انت أضفت قسم {text} تبي تضيف زيادة او تبي تكتب انهاء؟")
+                        await u.message.reply_text(f"الحين انت أضفت قسم {text} تبي تضيف زيادة او تبي تكتب اغلاق؟")
                         return
-                elif text == "انهاء":
+                elif text == "اغلاق":
                     if auto_mode["sections"]:
                         storage.finish_auto_collection(cid)
+                        await u.message.reply_text("عشان تغير الجملة اكتب [ة] وعشان تغير أقسام اكتب [ق]")
+                        await asyncio.sleep(1)
                         await u.message.reply_text("3")
                         await asyncio.sleep(1)
                         await u.message.reply_text("2")
@@ -1584,7 +1586,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                         await send_auto_sentence(c, cid, auto_mode)
                         storage.update_auto_activity(cid)
                     else:
-                        await u.message.reply_text("لم تختر أي قسم. اكتب اسم قسم أو أكثر ثم اكتب انهاء")
+                        await u.message.reply_text("لم تختر أي قسم. اكتب اسم قسم أو أكثر ثم اكتب اغلاق")
                     return
             elif auto_mode["active"]:
                 auto_sessions = {}
@@ -1663,7 +1665,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     if text == "تلقائي":
         storage.start_auto_mode(cid, uid, message_thread_id)
-        await u.message.reply_text("اختر انواع الأقسام اللتي تريدها حين الإنتهاء اكتب انهاء")
+        await u.message.reply_text("اختر انواع الأقسام اللتي تريدها حين الإنتهاء اكتب اغلاق")
         storage.log_cmd("تلقائي")
         return
 
