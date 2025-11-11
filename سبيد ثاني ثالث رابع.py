@@ -19,13 +19,13 @@ OWNER_ID = 5562144078
 
 message_cache = {}
 last_save_time = time.time()
-save_interval = 30.0
+save_interval = 60.0
 dirty_count = 0
-max_dirty_count = 100
+max_dirty_count = 200
 
-file_cache = TTLCache(maxsize=20, ttl=3600)
-admin_cache = LRUCache(maxsize=100)
-banned_cache = LRUCache(maxsize=200)
+file_cache = TTLCache(maxsize=10, ttl=3600)
+admin_cache = LRUCache(maxsize=50)
+banned_cache = LRUCache(maxsize=100)
 
 chat_locks = defaultdict(asyncio.Lock)
 last_command_time = defaultdict(lambda: defaultdict(float))
@@ -78,8 +78,8 @@ NUM_WORDS = {'0': 'صفر', '1': 'واحد', '2': 'اثنان', '3': 'ثلاثة
 async def init_http_session():
     global http_session
     if http_session is None:
-        timeout = aiohttp.ClientTimeout(total=30)
-        connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
+        timeout = aiohttp.ClientTimeout(total=15)
+        connector = aiohttp.TCPConnector(limit=5, limit_per_host=3)
         http_session = aiohttp.ClientSession(timeout=timeout, connector=connector)
     return http_session
 
@@ -106,10 +106,10 @@ async def can_bot_send(cid):
     async with bot_send_lock:
         current_time = time.time()
         last_send = last_bot_send_time.get(cid, 0)
-        
+
         if current_time - last_send < 2.0:
             return False
-        
+
         last_bot_send_time[cid] = current_time
         return True
 
@@ -145,7 +145,7 @@ def convert_repeat_pattern_to_words(pattern):
         word = match.group(1)
         count = int(match.group(2))
         return ' '.join([word] * count)
-    
+
     converted = re.sub(r'(\S+)\((\d+)\)', replace_pattern, pattern)
     return converted
 
@@ -168,13 +168,13 @@ def convert_to_triple(sentence):
 
 def calculate_typing_speed(base_wpm, sentence_type=None):
     base_fluctuation = random.uniform(-0.05, -0.15) if random.random() < 0.5 else random.uniform(0.05, 0.15)
-    
+
     multiplier = 1.0
     if sentence_type in ["كرر", "دبل", "تر"]:
         multiplier = random.uniform(1.20, 1.30)
-    
+
     final_wpm = base_wpm * (1 + base_fluctuation) * multiplier
-    
+
     return max(120, min(210, final_wpm))
 
 def build_speed_output(sentence):
@@ -186,35 +186,35 @@ async def speed_bot_type_sentence(context, cid, sentence, wpm, sentence_type, st
         speed_text = build_speed_output(sentence)
         words = sentence.split()
         total_chars = sum(len(w) for w in words)
-        
+
         chars_per_second = (wpm * 5) / 60.0
         total_time_needed = total_chars / chars_per_second
-        
+
         chunks = []
         current_chunk = ""
         current_word_idx = 0
-        
+
         for word in words:
             if current_chunk:
                 current_chunk += " ~ " + word
             else:
                 current_chunk = word
             current_word_idx += 1
-            
+
             if current_word_idx % 2 == 0 or current_word_idx == len(words):
                 chunks.append(current_chunk)
-        
+
         if not chunks:
             chunks = [speed_text]
-        
+
         chunk_delay = total_time_needed / len(chunks)
-        
+
         message = None
         for i, chunk in enumerate(chunks):
             if i > 0:
                 jitter = random.uniform(0.8, 1.2)
                 await asyncio.sleep(chunk_delay * jitter)
-            
+
             try:
                 if message is None:
                     message = await context.bot.send_message(chat_id=cid, text=chunk)
@@ -223,19 +223,19 @@ async def speed_bot_type_sentence(context, cid, sentence, wpm, sentence_type, st
             except Exception as e:
                 print(f"Error in speed bot typing: {e}")
                 break
-        
+
         elapsed_time = time.time() - start_time
         actual_wpm = (len(words) / elapsed_time) * 60
-        
+
         final_text = f"{speed_text}\n\n⚡ سرعة سبيد: {actual_wpm:.2f} كلمة/دقيقة"
         try:
             if message:
                 await message.edit_text(final_text)
         except:
             pass
-        
+
         return actual_wpm
-        
+
     except asyncio.CancelledError:
         print(f"Speed bot task cancelled for chat {cid}")
         raise
@@ -343,7 +343,7 @@ class Storage:
     def mark_dirty(self):
         self.dirty = True
         self._dirty_count += 1
-        
+
         if self._dirty_count >= max_dirty_count:
             self.save(force=True)
 
@@ -393,10 +393,10 @@ class Storage:
 
     def is_banned(self, uid):
         uid_str = str(uid)
-        
+
         if uid_str in banned_cache:
             return banned_cache[uid_str]
-        
+
         is_in_list = uid_str in self.data["banned"]
         banned_cache[uid_str] = is_in_list
         return is_in_list
@@ -438,7 +438,7 @@ class Storage:
         cache_key = f"admin_{uid}"
         if cache_key in admin_cache:
             return admin_cache[cache_key]
-        
+
         result = str(uid) in self.data["admins"]
         admin_cache[cache_key] = result
         return result
@@ -447,7 +447,7 @@ class Storage:
         cache_key = f"owner_{uid}"
         if cache_key in admin_cache:
             return admin_cache[cache_key]
-        
+
         result = str(uid) in self.data["owners"]
         admin_cache[cache_key] = result
         return result
@@ -728,7 +728,7 @@ class Storage:
     def start_auto_mode(self, cid, uid, message_thread_id=None):
         if "auto_mode" not in self.data:
             self.data["auto_mode"] = {}
-        
+
         key = str(cid)
         self.data["auto_mode"][key] = {
             "uid": uid,
@@ -745,7 +745,7 @@ class Storage:
     def add_auto_section(self, cid, section):
         if "auto_mode" not in self.data:
             self.data["auto_mode"] = {}
-        
+
         key = str(cid)
         if key in self.data["auto_mode"]:
             if section not in self.data["auto_mode"][key]["sections"]:
@@ -790,7 +790,7 @@ class Storage:
     def cleanup_inactive_auto_modes(self):
         if "auto_mode" not in self.data:
             return []
-        
+
         now = time.time()
         to_remove = []
 
@@ -1232,11 +1232,11 @@ def gen_pattern(uid, count=1):
 def gen_pattern_with_word_count(uid, total_words):
     if total_words < 4 or total_words > 50:
         return None
-    
+
     for attempt in range(100):
         num_words = random.randint(2, min(6, total_words))
         words = random.sample(REPEAT_WORDS, num_words)
-        
+
         remaining = total_words
         counts = []
         for i in range(num_words):
@@ -1250,22 +1250,22 @@ def gen_pattern_with_word_count(uid, total_words):
                 count = random.randint(min_count, max_count)
                 counts.append(count)
                 remaining -= count
-        
+
         if sum(counts) != total_words:
             continue
-        
+
         pattern = []
         key_parts = []
         for w, c in zip(words, counts):
             w_clean = w.replace('\u0640', '')
             pattern.append(f"{w_clean}({c})")
             key_parts.append(f"{w_clean}_{c}")
-        
+
         key = '_'.join(key_parts)
         if not storage.is_pattern_used(uid, key):
             storage.add_pattern(uid, key)
             return ' '.join(pattern)
-    
+
     storage.clear_patterns(uid)
     return gen_pattern_with_word_count(uid, total_words)
 
@@ -1356,14 +1356,14 @@ async def cmd_start(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
 async def show_bot_sections(u: Update, c: ContextTypes.DEFAULT_TYPE, is_callback=False):
     uid = u.effective_user.id if not is_callback else u.callback_query.from_user.id
-    
+
     if storage.is_banned(uid):
         if is_callback:
             await u.callback_query.answer("انت محظور تواصل مع @XXVV_99")
         else:
             await u.message.reply_text("انت محظور تواصل مع @XXVV_99")
         return
-    
+
     msg = (
         "الأقسام المتاحة:\n\n"
         "- (جمم) - جمل عادية\n"
@@ -1383,13 +1383,13 @@ async def show_bot_sections(u: Update, c: ContextTypes.DEFAULT_TYPE, is_callback
         "- (حر) - جمل أحرف\n\n"
         "مميزات البوت وأوامره في زر أوامر البوت\n\n"
     )
-    
+
     keyboard = [
         [InlineKeyboardButton("أوامر البوت", callback_data="show_commands")],
         [InlineKeyboardButton("أقسام البوت", callback_data="show_sections")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     if is_callback:
         try:
             await u.callback_query.edit_message_text(msg, reply_markup=reply_markup)
@@ -1400,14 +1400,14 @@ async def show_bot_sections(u: Update, c: ContextTypes.DEFAULT_TYPE, is_callback
 
 async def show_bot_commands(u: Update, c: ContextTypes.DEFAULT_TYPE, is_callback=False):
     uid = u.effective_user.id if not is_callback else u.callback_query.from_user.id
-    
+
     if storage.is_banned(uid):
         if is_callback:
             await u.callback_query.answer("انت محظور تواصل مع @XXVV_99")
         else:
             await u.message.reply_text("انت محظور تواصل مع @XXVV_99")
         return
-    
+
     msg = (
         "أوامر البوت:\n\n"
         "- (الصدارة) - المتصدرين\n" 
@@ -1424,7 +1424,7 @@ async def show_bot_commands(u: Update, c: ContextTypes.DEFAULT_TYPE, is_callback
         [InlineKeyboardButton("أقسام البوت", callback_data="show_sections")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     if is_callback:
         try:
             await u.callback_query.edit_message_text(msg, reply_markup=reply_markup)
@@ -1688,14 +1688,14 @@ async def send_auto_sentence(c: ContextTypes.DEFAULT_TYPE, cid, auto_data):
     sections = auto_data["sections"]
     last_section = auto_data.get("last_used_section")
     message_thread_id = auto_data.get("message_thread_id")
-    
+
     available_sections = [s for s in sections if s != last_section] if len(sections) > 1 and last_section else sections
     if not available_sections:
         available_sections = sections
-    
+
     selected_section = random.choice(available_sections)
     storage.set_auto_last_section(cid, selected_section)
-    
+
     if selected_section in ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E"]:
         sent = managers[selected_section].get()
         storage.save_session(auto_data["uid"], cid, f"تلقائي_{selected_section}", sent, time.time(), sent=True)
@@ -1879,22 +1879,22 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 await u.message.reply_text("تم إيقاف نظام تلقائي")
                 storage.log_cmd("قف")
                 return
-            
+
             if text == "ة" and auto_mode["active"]:
                 storage.update_auto_activity(cid)
                 await send_auto_sentence(c, cid, auto_mode)
                 return
-            
+
             if text == "ق":
                 storage.end_auto_mode(cid)
                 storage.start_auto_mode(cid, uid, message_thread_id)
                 await u.message.reply_text("اختار أقسام جديدة ترا القديمة انحذفت اذا تبيها حطها من جديد\nاكتب الأقسام اللي تبيها وحين تنتهي اكتب انهاء")
                 storage.log_cmd("ق")
                 return
-            
+
             if auto_mode["collecting"]:
                 valid_sections = ["جمم", "ويكي", "صج", "شك", "جش", "كرر", "شرط", "فكك", "دبل", "تر", "عكس", "فر", "E", "رق", "حر"]
-                
+
                 if text in valid_sections:
                     if storage.add_auto_section(cid, text):
                         await u.message.reply_text(f"الحين انت أضفت قسم {text} تبي تضيف زيادة او تبي تكتب انهاء؟")
@@ -1908,7 +1908,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                         await asyncio.sleep(1)
                         await u.message.reply_text("1")
                         await asyncio.sleep(1)
-                        
+
                         await send_auto_sentence(c, cid, auto_mode)
                         storage.update_auto_activity(cid)
                     else:
@@ -1921,7 +1921,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                     session = storage.get_session(cid, session_key)
                     if session:
                         auto_sessions[section] = session
-                
+
                 matched = False
                 for section, session in auto_sessions.items():
                     typ = session.get("type")
@@ -1933,7 +1933,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                         continue
 
                     section_type = typ.replace("تلقائي_", "")
-                    
+
                     if section_type in ["جمم", "ويكي", "صج", "شك", "جش"]:
                         if match_text(orig, text, "arabic"):
                             matched = True
@@ -1975,10 +1975,10 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                         word_count = count_words_for_wpm(text)
                         wpm = (word_count / max(elapsed, 0.01)) * 60 + 10
                         storage.update_score(uid, section_type, wpm)
-                        
+
                         storage.del_session(cid, typ)
                         storage.update_auto_activity(cid)
-                        
+
                         await u.message.reply_text(f"سرعتك: {wpm:.1f} كلمة/دقيقة")
                         await asyncio.sleep(0.5)
                         await send_auto_sentence(c, cid, auto_mode)
@@ -2065,10 +2065,10 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
     active_sessions = storage.get_all_active_sessions(cid)
 
     command, word_count = extract_number_from_text(text)
-    
+
     game_commands = ["جمم", "ويكي", "صج", "شك", "جش", "فر", "E", "e", "رق", "حر", "كرر", "شرط", "فكك", "دبل", "تر", "عكس"]
     is_game_command = (command in game_commands or text in game_commands)
-    
+
     if is_game_command:
         if not await can_bot_send(cid):
             return
@@ -2187,12 +2187,12 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if command == "رق" or text == "رق":
         async with chat_locks[cid]:
             message_id = f"{cid}_رق_{uid}_{current_time}"
-            
+
             if current_time - sent_message_tracker[cid]["رق"] < 0.5:
                 return
-            
+
             storage.log_cmd("رق")
-            
+
             if word_count and 1 <= word_count <= 60:
                 storage.save_preference(uid, "رق", word_count)
                 sent = generate_random_sentence(uid, NUMBER_WORDS, word_count, word_count, "رق")
@@ -2214,19 +2214,19 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 display = format_display(sent)
                 await u.message.reply_text(display)
                 asyncio.create_task(trigger_speed_bot_if_enabled(c, cid, sent, "رق"))
-            
+
             sent_message_tracker[cid]["رق"] = current_time
         return
 
     if command == "حر" or text == "حر":
         async with chat_locks[cid]:
             message_id = f"{cid}_حر_{uid}_{current_time}"
-            
+
             if current_time - sent_message_tracker[cid]["حر"] < 0.5:
                 return
-            
+
             storage.log_cmd("حر")
-            
+
             if word_count and 1 <= word_count <= 60:
                 storage.save_preference(uid, "حر", word_count)
                 sent = generate_random_sentence(uid, LETTER_WORDS, word_count, word_count, "حر")
@@ -2248,17 +2248,17 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 display = format_display(sent)
                 await u.message.reply_text(display)
                 asyncio.create_task(trigger_speed_bot_if_enabled(c, cid, sent, "حر"))
-            
+
             sent_message_tracker[cid]["حر"] = current_time
         return
 
     if command == "كرر" or text == "كرر":
         async with chat_locks[cid]:
             message_id = f"{cid}_كرر_{uid}_{current_time}"
-            
+
             if current_time - sent_message_tracker[cid]["كرر"] < 0.5:
                 return
-            
+
             storage.log_cmd("كرر")
 
             if word_count and 4 <= word_count <= 50:
@@ -2276,7 +2276,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 storage.save_session(uid, cid, "كرر", pattern, time.time(), sent=True)
                 await u.message.reply_text(pattern)
                 asyncio.create_task(trigger_speed_bot_if_enabled(c, cid, pattern, "كرر"))
-            
+
             sent_message_tracker[cid]["كرر"] = current_time
         return
 
@@ -2438,7 +2438,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     best_match = None
     best_elapsed = None
-    
+
     for session in active_sessions:
         typ = session.get("type")
         orig = session.get("text")
@@ -2501,7 +2501,7 @@ async def handle_msg(u: Update, c: ContextTypes.DEFAULT_TYPE):
         typ = best_match.get("type")
         orig = best_match.get("text")
         elapsed = best_elapsed
-        
+
         word_count = count_words_for_wpm(text)
         elapsed = max(elapsed, 0.01)
         wpm = (word_count / elapsed) * 60
@@ -2587,7 +2587,7 @@ async def handle_callback(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if query.data == "show_commands":
         await show_bot_commands(u, c, is_callback=True)
         return
-    
+
     if query.data == "show_sections":
         await show_bot_sections(u, c, is_callback=True)
         return
